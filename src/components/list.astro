@@ -13,32 +13,36 @@ const { data: files, error } = await supabase.storage
     .from("prac0")
     .list("", { limit: 100 });
 
-console.log("Raw files from Supabase:", files);
-console.log("Error:", error);
+console.log("Storage files:", files);
+console.log("Storage error:", error);
 
 if (error) {
     console.error("Error fetching files:", error);
 }
 
-// .emptyFolderPlaceholderなどを除外して公開URLを生成
-const images =
-    files
-        ?.filter((f) => {
-            console.log("File:", f.name, "Starts with dot:", f.name.startsWith("."));
-            return !f.name.startsWith(".") && f.name !== "";
-        })
-        ?.map((f) => {
-            const { data: urlData } = supabase.storage
-                .from("prac0")
-                .getPublicUrl(f.name);
-            console.log("Generated URL for", f.name, ":", urlData.publicUrl);
-            return {
-                name: f.name,
-                url: urlData.publicUrl,
-            };
-        }) || [];
+// DBからメタ情報も取得
+const { data: meta, error: metaError } = await supabase.from("prac").select("*");
 
-console.log("Final images array:", images);
+console.log("DB meta data:", meta);
+console.log("DB meta error:", metaError);
+
+// .emptyFolderPlaceholderなどを除外してfileNameをキーにマージ
+const images = files
+    ?.filter((f) => !f.name.startsWith(".") && f.name !== "")
+    ?.map((f) => {
+        const row = meta?.find((m) => m.file_name === f.name);
+        console.log(`Matching ${f.name}: found row =`, row);
+        const url = supabase.storage.from("prac0").getPublicUrl(f.name)
+            .data.publicUrl;
+
+        return {
+            name: f.name,
+            url,
+            author: row?.author || "名無し",
+        };
+    }) || [];
+
+console.log("Final images with authors:", images);
 ---
 
 <Layout>
@@ -59,6 +63,7 @@ console.log("Final images array:", images);
                 {images.map((img) => (
                     <div class="item">
                         <img src={img.url} alt={img.name} />
+                        <p>投稿者: {img.author}</p>
                         <a href={img.url} download={img.name}>
                             <button>ダウンロード</button>
                         </a>

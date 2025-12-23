@@ -1,34 +1,33 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import List from "../components/list.astro";
 ---
 
 <Layout>
 	<body>
-		<h1>写真をアップロード</h1>
-		<input type="file" id="fileInput" accept="image/*" />
-		<button id="uploadBtn">Upload</button>
-		<div id="result"></div>
+		<div class="upload">
+			<h1>写真をアップロード</h1>
+			<input type="file" id="fileInput" />
+			<input type="text" id="nameInput" placeholder="Autor (省略可)" />
+			<button id="uploadBtn">Upload</button>
+			<div id="result"></div>
 
-		<a href="/list">一覧</a>
-
+			<a href="/list">一覧</a>
+		</div>
+		<List />
 		<script>
 			import { createClient } from "@supabase/supabase-js";
 
-			// Supabaseの設定（あなたの情報に置き換えてください）
+			// Supabase接続設定
 			const supabaseUrl = "https://ydljwbuuwiipcvriziis.supabase.co";
 			const supabaseKey =
 				"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkbGp3YnV1d2lpcGN2cml6aWlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0OTAzMzksImV4cCI6MjA4MjA2NjMzOX0.yTzeipGS9Wius_tylbEzEqG-kWyt7PlkBBpIq2bHFos";
 			const supabase = createClient(supabaseUrl, supabaseKey);
 
-			const uploadBtn = document.getElementById(
-				"uploadBtn",
-			) as HTMLButtonElement;
-			const fileInput = document.getElementById(
-				"fileInput",
-			) as HTMLInputElement;
-			const resultDiv = document.getElementById(
-				"result",
-			) as HTMLDivElement;
+			const uploadBtn = document.getElementById("uploadBtn");
+			const fileInput = document.getElementById("fileInput");
+			const nameInput = document.getElementById("nameInput");
+			const resultDiv = document.getElementById("result");
 
 			uploadBtn.onclick = async () => {
 				const file = fileInput.files?.[0];
@@ -40,25 +39,52 @@ import Layout from "../layouts/Layout.astro";
 				resultDiv.textContent = "アップロード中...";
 
 				try {
-					// ファイル名をサニタイズ（英数字とドット、ハイフンのみ）
-					const extension = file.name.split('.').pop();
+					// ファイル名生成（ファイル衝突を避ける）
+					const extension = file.name.split(".").pop();
 					const fileName = `${Date.now()}.${extension}`;
+
+					//--------------------------------------------
+					// ① Storage にアップロード
+					//--------------------------------------------
 					const { data, error } = await supabase.storage
 						.from("prac0")
 						.upload(fileName, file);
 
 					if (error) throw error;
 
-					// 公開URLを取得
+					//--------------------------------------------
+					// ② Storage の公開URLを取得
+					//--------------------------------------------
 					const { data: urlData } = supabase.storage
 						.from("prac0")
 						.getPublicUrl(fileName);
 
+					//--------------------------------------------
+					// ③ DB に記録（作者名 + URL + パス）
+					//--------------------------------------------
+					const author = nameInput.value; // ← 追加したいテキスト
+
+					const { error: dbError } = await supabase
+						.from("prac")
+						.insert({
+							author: author, // 入力した作者名
+							file_name: fileName, // 元ファイル名
+							file_path: data.path, // Storage のパス
+							public_url: urlData.publicUrl, // 公開URL
+							created_at: new Date(),
+						});
+
+					if (dbError) throw dbError;
+
+					//--------------------------------------------
+					// ④ 成功表示
+					//--------------------------------------------
 					resultDiv.innerHTML = `
-            <p>アップロード成功！</p>
-            <p>URL: <a href="${urlData.publicUrl}" target="_blank">${urlData.publicUrl}</a></p>
-            <img src="${urlData.publicUrl}" alt="アップロードした画像" style="max-width: 400px; margin-top: 10px;">
-          `;
+			<p>アップロード成功！</p>
+			<p>作者: ${author}</p>
+			<p>URL: <a href="${urlData.publicUrl}" target="_blank">${urlData.publicUrl}</a></p>
+			<img src="${urlData.publicUrl}" style="max-width: 400px; margin-top: 10px;">
+		`;
 				} catch (error) {
 					resultDiv.textContent = `エラー: ${error.message}`;
 					console.error(error);
