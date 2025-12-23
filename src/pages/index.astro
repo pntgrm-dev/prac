@@ -1,11 +1,89 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
-
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+import Layout from "../layouts/Layout.astro";
 ---
 
 <Layout>
-	<Welcome />
+	<body>
+		<h1>写真をアップロード</h1>
+		<input type="file" id="fileInput" accept="image/*" />
+		<button id="uploadBtn">Upload</button>
+		<div id="result"></div>
+
+		<a href="/list">一覧</a>
+
+		<script>
+			import { createClient } from "@supabase/supabase-js";
+
+			// Supabaseの設定（あなたの情報に置き換えてください）
+			const supabaseUrl = "https://ydljwbuuwiipcvriziis.supabase.co";
+			const supabaseKey =
+				"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkbGp3YnV1d2lpcGN2cml6aWlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0OTAzMzksImV4cCI6MjA4MjA2NjMzOX0.yTzeipGS9Wius_tylbEzEqG-kWyt7PlkBBpIq2bHFos";
+			const supabase = createClient(supabaseUrl, supabaseKey);
+
+			const uploadBtn = document.getElementById(
+				"uploadBtn",
+			) as HTMLButtonElement;
+			const fileInput = document.getElementById(
+				"fileInput",
+			) as HTMLInputElement;
+			const resultDiv = document.getElementById(
+				"result",
+			) as HTMLDivElement;
+
+			uploadBtn.onclick = async () => {
+				const file = fileInput.files?.[0];
+				if (!file) {
+					alert("ファイルを選択してください！");
+					return;
+				}
+
+				resultDiv.textContent = "アップロード中...";
+
+				try {
+					// ファイル名をサニタイズ（英数字とドット、ハイフンのみ）
+					const extension = file.name.split('.').pop();
+					const fileName = `${Date.now()}.${extension}`;
+					const { data, error } = await supabase.storage
+						.from("prac0")
+						.upload(fileName, file);
+
+					if (error) throw error;
+
+					// 公開URLを取得
+					const { data: urlData } = supabase.storage
+						.from("prac0")
+						.getPublicUrl(fileName);
+
+					resultDiv.innerHTML = `
+            <p>アップロード成功！</p>
+            <p>URL: <a href="${urlData.publicUrl}" target="_blank">${urlData.publicUrl}</a></p>
+            <img src="${urlData.publicUrl}" alt="アップロードした画像" style="max-width: 400px; margin-top: 10px;">
+          `;
+				} catch (error) {
+					resultDiv.textContent = `エラー: ${error.message}`;
+					console.error(error);
+				}
+			};
+		</script>
+
+		<style>
+			body {
+				padding: 2rem;
+				font-family: system-ui, sans-serif;
+			}
+			h1 {
+				margin-bottom: 1rem;
+			}
+			input {
+				margin-right: 1rem;
+			}
+			button {
+				padding: 0.5rem 1rem;
+				cursor: pointer;
+			}
+			#result {
+				margin-top: 1rem;
+			}
+		</style>
+	</body>
 </Layout>

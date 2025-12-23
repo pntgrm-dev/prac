@@ -1,0 +1,103 @@
+---
+import { createClient } from "@supabase/supabase-js";
+import Layout from "../layouts/Layout.astro";
+
+const supabaseUrl = "https://ydljwbuuwiipcvriziis.supabase.co";
+const supabaseKey =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkbGp3YnV1d2lpcGN2cml6aWlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0OTAzMzksImV4cCI6MjA4MjA2NjMzOX0.yTzeipGS9Wius_tylbEzEqG-kWyt7PlkBBpIq2bHFos";
+
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// バケット内の画像一覧を取得
+const { data: files, error } = await supabase.storage
+    .from("prac0")
+    .list("", { limit: 100 });
+
+console.log("Raw files from Supabase:", files);
+console.log("Error:", error);
+
+if (error) {
+    console.error("Error fetching files:", error);
+}
+
+// .emptyFolderPlaceholderなどを除外して公開URLを生成
+const images =
+    files
+        ?.filter((f) => {
+            console.log("File:", f.name, "Starts with dot:", f.name.startsWith("."));
+            return !f.name.startsWith(".") && f.name !== "";
+        })
+        ?.map((f) => {
+            const { data: urlData } = supabase.storage
+                .from("prac0")
+                .getPublicUrl(f.name);
+            console.log("Generated URL for", f.name, ":", urlData.publicUrl);
+            return {
+                name: f.name,
+                url: urlData.publicUrl,
+            };
+        }) || [];
+
+console.log("Final images array:", images);
+---
+
+<Layout>
+    <h1>画像一覧</h1>
+    <p>画像数: {images.length}</p>
+    <details>
+        <summary>デバッグ情報</summary>
+        <pre>Files: {JSON.stringify(files, null, 2)}</pre>
+        <pre>Error: {JSON.stringify(error, null, 2)}</pre>
+        <pre>Images: {JSON.stringify(images, null, 2)}</pre>
+    </details>
+
+    {
+        images.length === 0 ? (
+            <p>画像がアップロードされていません</p>
+        ) : (
+            <div class="grid">
+                {images.map((img) => (
+                    <div class="item">
+                        <img src={img.url} alt={img.name} />
+                        <a href={img.url} download={img.name}>
+                            <button>ダウンロード</button>
+                        </a>
+                    </div>
+                ))}
+            </div>
+        )
+    }
+    <a href="/">アップロードページへ戻る</a>
+
+    <style>
+        .grid {
+            margin-top: 32px;
+            display: grid;
+            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        }
+        .item {
+            background: #f8f8f8;
+            padding: 10px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        img {
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        button {
+            padding: 6px 12px;
+            background: black;
+            color: white;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+        }
+        a {
+            display: inline-block;
+            margin-top: 20px;
+        }
+    </style>
+</Layout>
